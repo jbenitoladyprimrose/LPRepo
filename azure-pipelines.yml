@@ -1,0 +1,36 @@
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+- task: AzureCLI@2
+  displayName: 'Check Current API Version'
+  inputs:
+    azureSubscription: 'Azure Service Connection'
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      az account show
+      az rest --method get --uri "https://management.azure.com/subscriptions/YOUR_SUBSCRIPTION_ID/providers/Microsoft.DesktopVirtualization?api-version=2024-04-03"
+
+- task: PowerShell@2
+  displayName: 'Update ARM Template API Versions'
+  inputs:
+    targetType: 'inline'
+    script: |
+      $json = Get-Content 'path-to-arm-template.json' | ConvertFrom-Json
+      $json.resources | ForEach-Object { $_.apiVersion = "2024-04-03" }
+      $json | ConvertTo-Json -Depth 10 | Set-Content 'updated-arm-template.json'
+
+- task: AzureResourceManagerTemplateDeployment@3
+  displayName: 'Deploy Updated ARM Template'
+  inputs:
+    deploymentScope: 'Subscription'
+    azureResourceManagerConnection: 'Azure Service Connection'
+    subscriptionId: 'YOUR_SUBSCRIPTION_ID'
+    location: 'East US'
+    templateLocation: 'Linked artifact'
+    csmFile: 'updated-arm-template.json'
+    deploymentMode: 'Incremental'
